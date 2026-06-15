@@ -90,6 +90,10 @@ export function createMockSessionManager() {
       success: true,
       frames: []
     }),
+    getStackTraceResult: vi.fn().mockResolvedValue({
+      frames: [],
+      totalFrames: 0
+    }),
     getScopes: vi.fn().mockResolvedValue({
       success: true,
       scopes: []

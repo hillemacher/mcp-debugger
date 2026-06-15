@@ -296,6 +296,18 @@ export interface StackFrame {
   column?: number;
 }
 
+
+/**
+ * Result of a stack trace request, including truncation metadata so callers
+ * can tell whether frames were dropped by framework filtering or capping.
+ */
+export interface StackTraceResult {
+  /** Frames returned after framework filtering and any maxDepth cap */
+  frames: StackFrame[];
+  /** Total frames available in the raw stack, before filtering/capping */
+  totalFrames: number;
+}
+
 /**
  * Debug location information
  */

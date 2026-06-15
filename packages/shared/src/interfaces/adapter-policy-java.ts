@@ -198,25 +198,40 @@ export const JavaAdapterPolicy: AdapterPolicy = {
       return frames;
     }
 
-    return frames.filter(frame => {
-      const filePath = frame.file || '';
-      const frameName = frame.name || '';
-
-      // Filter out JDK internal frames
-      if (frameName.startsWith('java.') || frameName.startsWith('javax.') || frameName.startsWith('sun.')) {
-        return false;
-      }
-      if (filePath.includes('/jdk/') || filePath.includes('/rt.jar/')) {
-        return false;
-      }
-
-      return true;
-    });
+    return frames.filter(frame => !JavaAdapterPolicy.isInternalFrame!(frame));
   },
 
   isInternalFrame: (frame: StackFrame): boolean => {
     const frameName = frame.name || '';
-    return frameName.startsWith('java.') || frameName.startsWith('javax.') || frameName.startsWith('sun.');
+    const filePath = frame.file || '';
+
+    // JDK, reflection, test-framework, and build-tool runtime frames (by class name)
+    const internalPrefixes = [
+      'java.',
+      'javax.',
+      'sun.',
+      'jdk.internal.',
+      'java.lang.reflect.',
+      'sun.reflect.',
+      'org.junit.',
+      'org.gradle.',
+      'worker.org.gradle.'
+    ];
+    if (internalPrefixes.some(prefix => frameName.startsWith(prefix))) {
+      return true;
+    }
+
+    // Synthetic / lambda frames (e.g. com.example.Foo$$Lambda$1, LambdaMetafactory)
+    if (frameName.includes('$$Lambda') || frameName.includes('LambdaMetafactory')) {
+      return true;
+    }
+
+    // JDK source/jar paths
+    if (filePath.includes('/jdk/') || filePath.includes('/rt.jar/')) {
+      return true;
+    }
+
+    return false;
   },
 
   getAdapterSpawnConfig: (payload) => {
