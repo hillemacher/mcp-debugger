@@ -1,3 +1,6 @@
+# Local tooling
+.serena/
+
 # Dependencies
 node_modules/
 
