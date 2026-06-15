@@ -379,10 +379,16 @@ packages/adapter-{language}/
 
 Choose the installation method that best fits your use case:
 
+> **Scope**: By default, `claude mcp add-json` registers the server for the current project only (`--scope project`). Use `--scope user` to make it available in all Claude Code sessions.
+
 #### Option 1: NPX (No Installation Required)
 ```bash
 # Best for: Trying out mcp-debugger
-/home/ubuntu/.claude/local/claude mcp add-json mcp-debugger \
+claude mcp add-json mcp-debugger \
+  '{"type":"stdio","command":"npx","args":["@debugmcp/mcp-debugger","stdio"]}'
+
+# To register for all sessions:
+claude mcp add-json --scope user mcp-debugger \
   '{"type":"stdio","command":"npx","args":["@debugmcp/mcp-debugger","stdio"]}'
 ```
 
@@ -390,14 +396,14 @@ Choose the installation method that best fits your use case:
 ```bash
 # Best for: Regular use across projects
 npm install -g @debugmcp/mcp-debugger
-/home/ubuntu/.claude/local/claude mcp add-json mcp-debugger \
+claude mcp add-json --scope user mcp-debugger \
   '{"type":"stdio","command":"mcp-debugger","args":["stdio"]}'
 ```
 
 #### Option 3: Docker
 ```bash
 # Best for: Isolation and consistency
-/home/ubuntu/.claude/local/claude mcp add-json mcp-debugger \
+claude mcp add-json mcp-debugger \
   '{"type":"stdio","command":"docker","args":["run","-i","--rm","-v","${PWD}:/workspace","debugmcp/mcp-debugger:latest","stdio"]}'
 ```
 
@@ -405,8 +411,12 @@ npm install -g @debugmcp/mcp-debugger
 ```bash
 # Best for: One-off use from a local clone
 pnpm install && npm run build
-/home/ubuntu/.claude/local/claude mcp add-json mcp-debugger \
+claude mcp add-json mcp-debugger \
   '{"type":"stdio","command":"node","args":["/home/ubuntu/mcp-debugger/dist/index.js","stdio"]}'
+
+# To register for all sessions (use an absolute path):
+claude mcp add-json --scope user mcp-debugger \
+  '{"type":"stdio","command":"node","args":["/absolute/path/to/mcp-debugger/dist/index.js","stdio"]}'
 ```
 
 **Note**: The `stdio` argument is critical - it tells the server to suppress all console output which would otherwise corrupt the JSON-RPC protocol communication.
