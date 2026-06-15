@@ -72,6 +72,7 @@ function hasCommand(cmd: string): boolean {
   }
 }
 
+const hasDebugpy = hasCommand(`${process.platform === 'win32' ? 'py' : 'python3'} -m debugpy --version`);
 const hasRust = hasCommand('rustc --version');
 const hasGo = hasCommand('go version') && hasCommand('dlv version');
 const hasDotnet = (() => {
@@ -129,7 +130,7 @@ interface LangDef {
 }
 
 const LANGUAGES: LangDef[] = [
-  { language: 'python', script: PYTHON_SCRIPT, bpLine: PYTHON_BP_LINE, available: true },
+  { language: 'python', script: PYTHON_SCRIPT, bpLine: PYTHON_BP_LINE, available: hasDebugpy, skipReason: hasDebugpy ? undefined : 'debugpy not installed' },
   { language: 'javascript', script: JS_SCRIPT, bpLine: JS_BP_LINE, available: true },
   { language: 'mock', script: PYTHON_SCRIPT, bpLine: PYTHON_BP_LINE, available: true },
   { language: 'rust', script: RUST_SCRIPT, bpLine: RUST_BP_LINE, available: hasRust, skipReason: hasRust ? undefined : 'Rust toolchain not installed' },

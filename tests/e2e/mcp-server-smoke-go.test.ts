@@ -18,10 +18,18 @@ import { fileURLToPath } from 'url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { parseSdkToolResult, callToolSafely } from './smoke-test-utils.js';
+import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '../..');
+
+const goAvailable = (() => {
+  try { execSync('go version', { stdio: 'ignore' }); return true; } catch { return false; }
+})();
+const dlvAvailable = (() => {
+  try { execSync('dlv version', { stdio: 'ignore' }); return true; } catch { return false; }
+})();
 
 describe('MCP Server Go Debugging Smoke Test @requires-go', () => {
   let mcpClient: Client | null = null;
@@ -137,31 +145,7 @@ describe('MCP Server Go Debugging Smoke Test @requires-go', () => {
     }
   });
 
-  it('should complete Go debugging flow with compiled binary', async () => {
-    // Skip if Go/Delve not available
-    const { execSync } = await import('child_process');
-    let goAvailable = false;
-    let dlvAvailable = false;
-    
-    try {
-      execSync('go version', { stdio: 'ignore' });
-      goAvailable = true;
-    } catch {
-      console.log('[Go Smoke Test] Go not available, skipping full flow test');
-    }
-    
-    try {
-      execSync('dlv version', { stdio: 'ignore' });
-      dlvAvailable = true;
-    } catch {
-      console.log('[Go Smoke Test] Delve not available, skipping full flow test');
-    }
-    
-    if (!goAvailable || !dlvAvailable) {
-      console.log('[Go Smoke Test] Skipping full debugging flow - Go/Delve not installed');
-      return;
-    }
-
+  it.skipIf(!goAvailable || !dlvAvailable)('should complete Go debugging flow with compiled binary', async () => {
     // Build a test Go program
     const testGoFile = path.resolve(ROOT, 'examples', 'go', 'hello_world.go');
     const testBinary = path.resolve(ROOT, 'examples', 'go', 'hello_world_test');

@@ -288,6 +288,8 @@ The project uses Vitest with three test levels:
 - **Integration Tests**: Test component interactions
 - **E2E Tests**: Test full debugging workflows with real debug adapters
 
+Integration and E2E tests that exercise real language adapters require the corresponding runtime and debugger to be installed (see **Language-Specific Requirements** below). Tests that detect a missing dependency use `describe.runIf()` or `it.skipIf()` and appear as **skipped** rather than failed in the test report. `npm run test:unit` has no external language dependencies and always runs cleanly.
+
 ## Common Debugging Scenarios
 
 When debugging issues:

@@ -177,8 +177,8 @@ describe('RustAdapterPolicy', () => {
       expect(config.env?.ONE).toBe('1');
     });
 
-    it('builds vendored codelldb command per platform', () => {
-      const restore = setPlatform('win32');
+    it('builds vendored codelldb command per platform (win32-x64)', () => {
+      const restore = setPlatform('win32', 'x64');
       const config = RustAdapterPolicy.getAdapterSpawnConfig!({
         adapterHost: '127.0.0.1',
         adapterPort: 9000,
@@ -187,6 +187,21 @@ describe('RustAdapterPolicy', () => {
 
       const normalizedCommand = config.command.replace(/\\/g, '/');
       expect(normalizedCommand).toMatch(/vendor\/codelldb\/win32-x64\/adapter\/codelldb\.exe$/);
+      expect(config.args).toEqual(['--port', '9000']);
+      expect(config.env?.LLDB_USE_NATIVE_PDB_READER).toBe('1');
+      restore();
+    });
+
+    it('builds vendored codelldb command per platform (win32-arm64)', () => {
+      const restore = setPlatform('win32', 'arm64');
+      const config = RustAdapterPolicy.getAdapterSpawnConfig!({
+        adapterHost: '127.0.0.1',
+        adapterPort: 9000,
+        logDir: '/tmp/logs'
+      });
+
+      const normalizedCommand = config.command.replace(/\\/g, '/');
+      expect(normalizedCommand).toMatch(/vendor\/codelldb\/win32-arm64\/adapter\/codelldb\.exe$/);
       expect(config.args).toEqual(['--port', '9000']);
       expect(config.env?.LLDB_USE_NATIVE_PDB_READER).toBe('1');
       restore();

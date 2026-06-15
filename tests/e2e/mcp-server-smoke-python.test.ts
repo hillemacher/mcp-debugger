@@ -16,12 +16,19 @@ import { fileURLToPath } from 'url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { parseSdkToolResult, callToolSafely } from './smoke-test-utils.js';
+import { spawnSync } from 'child_process';
+
+function isDebugpyAvailable(): boolean {
+  const cmd = process.platform === 'win32' ? 'py' : 'python3';
+  const r = spawnSync(cmd, ['-m', 'debugpy', '--version'], { stdio: 'pipe', timeout: 5000 });
+  return !r.error && r.status === 0;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '../..');
 
-describe('MCP Server Python Debugging Smoke Test', () => {
+describe.skipIf(!isDebugpyAvailable())('MCP Server Python Debugging Smoke Test', () => {
   let mcpClient: Client | null = null;
   let transport: StdioClientTransport | null = null;
   let sessionId: string | null = null;

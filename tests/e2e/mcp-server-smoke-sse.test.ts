@@ -3,7 +3,13 @@ import * as path from 'path';
 import * as os from 'os';
 import * as net from 'net';
 import { existsSync } from 'fs';
-import { spawn, ChildProcess, exec as execCallback } from 'child_process';
+import { spawn, spawnSync, ChildProcess, exec as execCallback } from 'child_process';
+
+function isDebugpyAvailable(): boolean {
+  const cmd = process.platform === 'win32' ? 'py' : 'python3';
+  const r = spawnSync(cmd, ['-m', 'debugpy', '--version'], { stdio: 'pipe', timeout: 5000 });
+  return !r.error && r.status === 0;
+}
 import { promisify } from 'util';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
@@ -21,7 +27,7 @@ let serverPort: number | null = null;
 const projectRoot = process.cwd();
 let distReady = false;
 
-describe('MCP Server E2E SSE Smoke Test', () => {
+describe.skipIf(!isDebugpyAvailable())('MCP Server E2E SSE Smoke Test', () => {
   // Ensure server is killed even if test fails
   afterEach(async () => {
     console.log('[SSE Smoke Test] Cleaning up...');

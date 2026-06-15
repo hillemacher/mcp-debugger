@@ -7,6 +7,13 @@ import { fileURLToPath } from 'url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ensurePythonOnPath } from './env-utils.js';
+import { spawnSync } from 'child_process';
+
+function isDebugpyAvailable(): boolean {
+  const cmd = process.platform === 'win32' ? 'py' : 'python3';
+  const r = spawnSync(cmd, ['-m', 'debugpy', '--version'], { stdio: 'pipe', timeout: 5000 });
+  return !r.error && r.status === 0;
+}
 
 // --- SDK-based MCP Client for Testing ---
 let client: Client | null = null;
@@ -120,7 +127,7 @@ async function waitForStackFrames(
   throw new Error(`Timed out waiting for stack frames for session ${sessionId}`);
 }
 
-describe('Python Debugging Workflow - Integration Test @requires-python', () => {
+describe.runIf(isDebugpyAvailable())('Python Debugging Workflow - Integration Test @requires-python', () => {
   let sessionId: string;
   const scriptPath = path.resolve('tests/fixtures/python/debug_test_simple.py'); // Absolute path
   const breakpointLine = 13; // Line 'c = a + b' in debug_test_simple.py

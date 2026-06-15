@@ -7,7 +7,13 @@
  * 3. Retrieve variables and evaluate expressions
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, spawnSync, ChildProcess } from 'child_process';
+
+function isDebugpyAvailable(): boolean {
+  const cmd = process.platform === 'win32' ? 'py' : 'python3';
+  const r = spawnSync(cmd, ['-m', 'debugpy', '--version'], { stdio: 'pipe', timeout: 5000 });
+  return !r.error && r.status === 0;
+}
 import * as net from 'net';
 import * as path from 'path';
 import { writeFile, rm } from 'node:fs/promises'; // Native promise-based fs
@@ -191,7 +197,7 @@ async function startMcpServer(port: number): Promise<ChildProcess> {
   return serverProcess;
 }
 
-describe('MCP Server connecting to debugpy', () => {
+describe.skipIf(!isDebugpyAvailable())('MCP Server connecting to debugpy', () => {
   beforeAll(async () => {
     try {
       // Ensure build output exists before running E2E
