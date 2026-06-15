@@ -191,7 +191,7 @@ describe('Server Inspection Tools Tests', () => {
       };
       
       mockSessionManager.getSession.mockReturnValue(mockSession);
-      mockSessionManager.getStackTrace.mockResolvedValue(mockStackFrames);
+      mockSessionManager.getStackTraceResult.mockResolvedValue({ frames: mockStackFrames, totalFrames: mockStackFrames.length });
       
       const result = await callToolHandler({
         method: 'tools/call',
@@ -286,7 +286,7 @@ describe('Server Inspection Tools Tests', () => {
       };
       
       mockSessionManager.getSession.mockReturnValue(mockSession);
-      mockSessionManager.getStackTrace.mockRejectedValue(new Error('Stack trace failed'));
+      mockSessionManager.getStackTraceResult.mockRejectedValue(new Error('Stack trace failed'));
       
       await expect(callToolHandler({
         method: 'tools/call',

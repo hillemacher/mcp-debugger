@@ -2379,6 +2379,70 @@ describe('Session Manager Operations Coverage - Error Paths and Edge Cases', () 
       expect(frames).toHaveLength(1);
       expect(frames[0].name).toBe('MyApp.Main');
     });
+
+    describe('getStackTraceResult (Java framework filtering, maxDepth, metadata)', () => {
+      // 2 user frames buried in a deep JUnit/Gradle/JDK framework stack.
+      const buildDeepJavaStack = () => {
+        const frameworkNames = [
+          'org.junit.platform.engine.support.hierarchical.NodeTestTask.execute',
+          'jdk.internal.reflect.DirectMethodHandleAccessor.invoke',
+          'java.lang.reflect.Method.invoke',
+          'sun.reflect.NativeMethodAccessorImpl.invoke0',
+          'org.gradle.api.internal.tasks.testing.junit.JUnitTestClassProcessor.processTestClass',
+          'worker.org.gradle.process.internal.worker.GradleWorkerMain.main',
+          'java.lang.Thread.run',
+          'com.example.Foo$$Lambda$14/0x0000000800066c40.run',
+        ];
+        const frameworkFrames = Array.from({ length: 120 }, (_, i) => ({
+          id: 100 + i,
+          name: frameworkNames[i % frameworkNames.length],
+          line: i,
+          column: 0,
+        }));
+        return [
+          { id: 1, name: 'com.example.CalculatorTest.testAdd', line: 12, column: 1, source: { path: '/app/CalculatorTest.java' } },
+          { id: 2, name: 'com.example.Calculator.add', line: 7, column: 1, source: { path: '/app/Calculator.java' } },
+          ...frameworkFrames,
+        ];
+      };
+
+      beforeEach(() => {
+        mockSession.language = 'java';
+        mockSession.state = SessionState.PAUSED;
+        mockProxyManager.isRunning.mockReturnValue(true);
+        mockProxyManager.getCurrentThreadId.mockReturnValue(1);
+        mockProxyManager.sendDapRequest.mockResolvedValue({ body: { stackFrames: buildDeepJavaStack() } });
+      });
+
+      it('collapses a 100+ frame stack to user frames and reports real totals', async () => {
+        const result = await operations.getStackTraceResult('test-session', undefined, false);
+
+        expect(result.totalFrames).toBe(122);
+        expect(result.frames.map(f => f.name)).toEqual([
+          'com.example.CalculatorTest.testAdd',
+          'com.example.Calculator.add',
+        ]);
+        // filtered indicator (computed in the server handler) would be totalFrames > returned
+        expect(result.totalFrames).toBeGreaterThan(result.frames.length);
+      });
+
+      it('caps to maxDepth after framework filtering, keeping totalFrames raw', async () => {
+        const result = await operations.getStackTraceResult('test-session', undefined, false, 1);
+
+        expect(result.frames).toHaveLength(1);
+        expect(result.frames[0].name).toBe('com.example.CalculatorTest.testAdd');
+        expect(result.totalFrames).toBe(122);
+      });
+
+      it('returns the full stack unchanged when includeInternals is true', async () => {
+        const result = await operations.getStackTraceResult('test-session', undefined, true);
+
+        expect(result.frames).toHaveLength(122);
+        expect(result.totalFrames).toBe(122);
+        // Nothing dropped → caller sees filtered=false (totalFrames === returned)
+        expect(result.totalFrames).toBe(result.frames.length);
+      });
+    });
   });
 
   describe('listThreads', () => {

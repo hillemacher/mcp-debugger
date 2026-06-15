@@ -164,7 +164,12 @@ use_mcp_tool(tool_name="continue_execution", arguments={"sessionId": "..."})
 use_mcp_tool(tool_name="get_local_variables", arguments={"sessionId": "..."})
 
 # Get call stack
-use_mcp_tool(tool_name="get_stack_trace", arguments={"sessionId": "..."})
+# By default (includeInternals: false) JDK, reflection, JUnit, Gradle, and
+# synthetic/lambda frames are filtered out, collapsing a deep JUnit/Gradle stack
+# to the few user frames. Pass includeInternals: true to see every frame, and
+# maxDepth to cap how many frames are returned (applied after filtering).
+# The response reports totalFrames/returned/filtered so you can tell frames were dropped.
+use_mcp_tool(tool_name="get_stack_trace", arguments={"sessionId": "...", "maxDepth": 10})
 
 # Evaluate an expression (frameId is optional; defaults to top frame)
 # The evaluator supports field access, method calls, arithmetic, and string concatenation

@@ -309,6 +309,8 @@ Gets the current call stack.
 
 **Parameters:**
 - `sessionId` (string, required): The ID of the debug session.
+- `includeInternals` (boolean, optional): Include internal/framework frames (e.g., Node.js internals, Java/JUnit/Gradle runtime frames). Default: `false` for cleaner output.
+- `maxDepth` (number, optional): Maximum number of frames to return, applied **after** framework filtering so the top user-relevant frames are kept. Omit to return all frames.
 
 **Response:**
 ```json
@@ -337,13 +339,23 @@ Gets the current call stack.
       "column": 1
     }
   ],
-  "count": 3
+  "count": 3,
+  "totalFrames": 3,
+  "returned": 3,
+  "filtered": false
 }
 ```
+
+**Response fields:**
+- `stackFrames`: The frames returned, after framework filtering and any `maxDepth` cap.
+- `count` / `returned`: Number of frames returned (`count` is kept for backward compatibility; both equal `stackFrames.length`).
+- `totalFrames`: Total frames available in the raw stack, before filtering/capping.
+- `filtered`: `true` when framework filtering and/or the `maxDepth` cap dropped frames (i.e. `totalFrames > returned`). When `true`, request again with `includeInternals: true` and/or a larger `maxDepth` to see more.
 
 **Notes:**
 - Stack frames are ordered from innermost (current) to outermost
 - Frame IDs are used with `get_scopes`
+- Framework-frame filtering is adapter-specific. For Java, `includeInternals: false` drops JDK (`java.*`, `javax.*`, `sun.*`, `jdk.internal.*`), reflection, JUnit (`org.junit.*`), Gradle (`org.gradle.*`, `worker.org.gradle.*`), and synthetic/lambda frames — collapsing a deep JUnit/Gradle stack to the few user frames.
 
 ---
 

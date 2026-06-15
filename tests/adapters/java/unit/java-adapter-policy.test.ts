@@ -202,6 +202,63 @@ describe('JavaAdapterPolicy', () => {
     });
   });
 
+  describe('framework frame filtering (JUnit/Gradle/reflection/lambda)', () => {
+    const userFrame = { id: 1, name: 'com.example.CalculatorTest.testAdd', file: '/app/CalculatorTest.java', line: 12 };
+
+    it.each([
+      ['jdk.internal.*', 'jdk.internal.reflect.DirectMethodHandleAccessor.invoke'],
+      ['java.lang.reflect.*', 'java.lang.reflect.Method.invoke'],
+      ['sun.reflect.*', 'sun.reflect.NativeMethodAccessorImpl.invoke0'],
+      ['org.junit.*', 'org.junit.platform.engine.support.hierarchical.NodeTestTask.execute'],
+      ['org.gradle.*', 'org.gradle.api.internal.tasks.testing.junit.JUnitTestClassProcessor.processTestClass'],
+      ['worker.org.gradle.*', 'worker.org.gradle.process.internal.worker.GradleWorkerMain.main'],
+      ['synthetic lambda', 'com.example.Foo$$Lambda$14/0x0000000800066c40.run'],
+      ['LambdaMetafactory', 'java.lang.invoke.LambdaMetafactory.metafactory'],
+    ])('identifies %s frames as internal', (_label, name) => {
+      expect(JavaAdapterPolicy.isInternalFrame!({ id: 9, name, file: '', line: 0 })).toBe(true);
+    });
+
+    it('collapses a deep (100+) JUnit/Gradle stack to only the user frames', () => {
+      const frameworkNames = [
+        'org.junit.platform.engine.support.hierarchical.NodeTestTask.execute',
+        'org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod',
+        'jdk.internal.reflect.DirectMethodHandleAccessor.invoke',
+        'java.lang.reflect.Method.invoke',
+        'sun.reflect.NativeMethodAccessorImpl.invoke0',
+        'org.gradle.api.internal.tasks.testing.junit.JUnitTestClassProcessor.processTestClass',
+        'worker.org.gradle.process.internal.worker.GradleWorkerMain.main',
+        'java.lang.Thread.run',
+        'com.example.Foo$$Lambda$14/0x0000000800066c40.run',
+      ];
+
+      // 3 user frames buried in a 100+ frame stack of framework/runtime frames.
+      const userFrames = [
+        userFrame,
+        { id: 2, name: 'com.example.Calculator.add', file: '/app/Calculator.java', line: 7 },
+        { id: 3, name: 'com.example.Calculator.checkedAdd', file: '/app/Calculator.java', line: 15 },
+      ];
+      const frameworkFrames = Array.from({ length: 120 }, (_, i) => ({
+        id: 100 + i,
+        name: frameworkNames[i % frameworkNames.length],
+        file: '',
+        line: i,
+      }));
+      const frames = [userFrames[0], userFrames[1], ...frameworkFrames, userFrames[2]];
+
+      expect(frames.length).toBeGreaterThan(100);
+
+      const filtered = JavaAdapterPolicy.filterStackFrames!(frames, false);
+      expect(filtered.map(f => f.name)).toEqual([
+        'com.example.CalculatorTest.testAdd',
+        'com.example.Calculator.add',
+        'com.example.Calculator.checkedAdd',
+      ]);
+
+      // includeInternals: true returns the full stack unchanged.
+      expect(JavaAdapterPolicy.filterStackFrames!(frames, true)).toHaveLength(frames.length);
+    });
+  });
+
   describe('getInitializationBehavior', () => {
     it('should use sendLaunchBeforeConfig (JDI sends initialized before launch)', () => {
       const behavior = JavaAdapterPolicy.getInitializationBehavior();

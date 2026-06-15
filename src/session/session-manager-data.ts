@@ -5,6 +5,7 @@
 import {
   Variable,
   StackFrame,
+  StackTraceResult,
   SessionState,
   AdapterPolicy,
   getPolicyForLanguage,
@@ -60,37 +61,51 @@ export abstract class SessionManagerData extends SessionManagerCore {
   }
 
   async getStackTrace(sessionId: string, threadId?: number, includeInternals: boolean = false): Promise<StackFrame[]> {
+    return (await this.getStackTraceResult(sessionId, threadId, includeInternals)).frames;
+  }
+
+  /**
+   * Like {@link getStackTrace} but also returns truncation metadata so callers can
+   * tell whether frames were dropped by framework filtering or by the `maxDepth` cap.
+   *
+   * @param maxDepth Optional cap on the number of frames returned, applied AFTER
+   *   framework filtering so the top user-relevant frames are kept.
+   */
+  async getStackTraceResult(sessionId: string, threadId?: number, includeInternals: boolean = false, maxDepth?: number): Promise<StackTraceResult> {
     const session = this._getSessionById(sessionId);
     const currentThreadId = session.proxyManager?.getCurrentThreadId();
-    this.logger.info(`[SM getStackTrace ${sessionId}] Entered. Requested threadId: ${threadId}, Current state: ${session.state}, Actual currentThreadId: ${currentThreadId}, includeInternals: ${includeInternals}`);
-    
-    if (!session.proxyManager || !session.proxyManager.isRunning()) { 
-      this.logger.warn(`[SM getStackTrace ${sessionId}] No active proxy.`); 
-      return []; 
+    this.logger.info(`[SM getStackTrace ${sessionId}] Entered. Requested threadId: ${threadId}, Current state: ${session.state}, Actual currentThreadId: ${currentThreadId}, includeInternals: ${includeInternals}, maxDepth: ${maxDepth}`);
+
+    if (!session.proxyManager || !session.proxyManager.isRunning()) {
+      this.logger.warn(`[SM getStackTrace ${sessionId}] No active proxy.`);
+      return { frames: [], totalFrames: 0 };
     }
-    if (session.state !== SessionState.PAUSED) { 
-      this.logger.warn(`[SM getStackTrace ${sessionId}] Session not paused. State: ${session.state}.`); 
-      return []; 
+    if (session.state !== SessionState.PAUSED) {
+      this.logger.warn(`[SM getStackTrace ${sessionId}] Session not paused. State: ${session.state}.`);
+      return { frames: [], totalFrames: 0 };
     }
-    
+
     const currentThreadForRequest = threadId || currentThreadId;
-    if (typeof currentThreadForRequest !== 'number') { 
-      this.logger.warn(`[SM getStackTrace ${sessionId}] No effective thread ID to use.`); 
-      return []; 
+    if (typeof currentThreadForRequest !== 'number') {
+      this.logger.warn(`[SM getStackTrace ${sessionId}] No effective thread ID to use.`);
+      return { frames: [], totalFrames: 0 };
     }
 
     try {
       this.logger.info(`[SM getStackTrace ${sessionId}] Sending DAP 'stackTrace' for threadId ${currentThreadForRequest}.`);
       const response = await session.proxyManager.sendDapRequest<DebugProtocol.StackTraceResponse>('stackTrace', { threadId: currentThreadForRequest });
       this.logger.info(`[SM getStackTrace ${sessionId}] DAP 'stackTrace' response received. Body:`, response?.body);
-      
+
       if (response && response.body && response.body.stackFrames) {
-        let frames: StackFrame[] = response.body.stackFrames.map((sf: DebugProtocol.StackFrame) => ({ 
-            id: sf.id, name: sf.name, 
-            file: sf.source?.path || sf.source?.name || "<unknown_source>", 
+        let frames: StackFrame[] = response.body.stackFrames.map((sf: DebugProtocol.StackFrame) => ({
+            id: sf.id, name: sf.name,
+            file: sf.source?.path || sf.source?.name || "<unknown_source>",
             line: sf.line, column: sf.column
         }));
-        
+
+        // Total frames available in the raw stack, before filtering/capping.
+        const totalFrames = frames.length;
+
         // Apply filtering using the language's policy
         const policy = this.selectPolicy(session.language);
         if (policy.filterStackFrames) {
@@ -98,15 +113,21 @@ export abstract class SessionManagerData extends SessionManagerCore {
           frames = policy.filterStackFrames(frames, includeInternals);
           this.logger.info(`[SM getStackTrace ${sessionId}] After filtering: ${frames.length} frames`);
         }
-        
+
+        // Cap to maxDepth AFTER filtering so the top user-relevant frames are kept.
+        if (typeof maxDepth === 'number' && maxDepth >= 0 && frames.length > maxDepth) {
+          this.logger.info(`[SM getStackTrace ${sessionId}] Capping to maxDepth ${maxDepth} (from ${frames.length} frames).`);
+          frames = frames.slice(0, maxDepth);
+        }
+
         this.logger.info(`[SM getStackTrace ${sessionId}] Parsed stack frames (top 3):`, frames.slice(0,3).map(f => ({name:f.name, file:f.file, line:f.line})));
-        return frames;
+        return { frames, totalFrames };
       }
       this.logger.warn(`[SM getStackTrace ${sessionId}] No stackFrames in response body. Response:`, response);
-      return [];
+      return { frames: [], totalFrames: 0 };
     } catch (error) {
       this.logger.error(`[SM getStackTrace ${sessionId}] Error getting stack trace:`, error);
-      return [];
+      return { frames: [], totalFrames: 0 };
     }
   }
 

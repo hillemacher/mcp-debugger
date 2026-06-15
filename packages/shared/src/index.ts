@@ -142,6 +142,7 @@ export type {
   // Debug info types
   Variable,
   StackFrame,
+  StackTraceResult,
   DebugLocation
 } from './models/index.js';
 

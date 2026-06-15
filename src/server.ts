@@ -22,7 +22,7 @@ import { ContainerConfig } from './container/types.js';
 import {
     DebugSessionInfo,
     Variable,
-    StackFrame,
+    StackTraceResult,
     DebugLanguage,
     Breakpoint,
     SessionLifecycleState,
@@ -88,6 +88,7 @@ interface ToolArguments {
   expression?: string;
   linesContext?: number;
   includeInternals?: boolean;
+  maxDepth?: number;
   includeSpecial?: boolean;
   // Attach-related parameters
   port?: number;
@@ -117,6 +118,7 @@ const TOOL_ARG_EXPECTED_TYPES: Record<string, 'number' | 'boolean' | 'object' | 
   // numbers
   line: 'number', linesContext: 'number', scope: 'number',
   frameId: 'number', port: 'number', timeout: 'number', threadId: 'number',
+  maxDepth: 'number',
   // booleans
   includeInternals: 'boolean', includeSpecial: 'boolean',
   stopOnEntry: 'boolean', justMyCode: 'boolean',
@@ -383,7 +385,7 @@ export class DebugMcpServer {
     return this.sessionManager.getVariables(sessionId, variablesReference);
   }
 
-  public async getStackTrace(sessionId: string, includeInternals: boolean = false): Promise<StackFrame[]> {
+  public async getStackTrace(sessionId: string, includeInternals: boolean = false, maxDepth?: number): Promise<StackTraceResult> {
     this.validateSession(sessionId);
     const session = this.sessionManager.getSession(sessionId);
     if (!session || !session.proxyManager) {
@@ -406,7 +408,7 @@ export class DebugMcpServer {
     if (typeof currentThreadId !== 'number') {
         throw new ProxyNotRunningError(sessionId || 'unknown', 'get stack trace');
     }
-    return this.sessionManager.getStackTrace(sessionId, currentThreadId, includeInternals);
+    return this.sessionManager.getStackTraceResult(sessionId, currentThreadId, includeInternals, maxDepth);
   }
 
   public async getScopes(sessionId: string, frameId: number): Promise<DebugProtocol.Scope[]> {
@@ -622,7 +624,7 @@ export class DebugMcpServer {
           { name: 'list_threads', description: 'List all threads in the debugged process', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
           { name: 'get_variables', description: 'Get variables (scope is variablesReference: number)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, scope: { type: 'number', description: "The variablesReference number from a StackFrame or Variable" } }, required: ['sessionId', 'scope'] } },
           { name: 'get_local_variables', description: 'Get local variables for the current stack frame. This is a convenience tool that returns just the local variables without needing to traverse stack->scopes->variables manually', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, includeSpecial: { type: 'boolean', description: 'Include special/internal variables like this, __proto__, __builtins__, etc. Default: false' } }, required: ['sessionId'] } },
-          { name: 'get_stack_trace', description: 'Get stack trace', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, includeInternals: { type: 'boolean', description: 'Include internal/framework frames (e.g., Node.js internals). Default: false for cleaner output.' } }, required: ['sessionId'] } },
+          { name: 'get_stack_trace', description: 'Get stack trace', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, includeInternals: { type: 'boolean', description: 'Include internal/framework frames (e.g., Node.js internals, Java/JUnit/Gradle runtime frames). Default: false for cleaner output.' }, maxDepth: { type: 'number', description: 'Maximum number of frames to return, applied after framework filtering so the top user-relevant frames are kept. Omit to return all frames.' } }, required: ['sessionId'] } },
           { name: 'get_scopes', description: 'Get scopes for a stack frame', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, frameId: { type: 'number', description: "The ID of the stack frame from a stackTrace response" } }, required: ['sessionId', 'frameId'] } },
           { name: 'evaluate_expression', description: 'Evaluate expression in the current debug context. Expressions can read and modify program state', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number', description: 'Optional stack frame ID for evaluation context. Must be a frame ID from a get_stack_trace response. If not provided, uses the current (top) frame automatically' } }, required: ['sessionId', 'expression'] } },
           { name: 'get_source_context', description: 'Get source context around a specific line in a file', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, file: { type: 'string', description: fileDescription }, line: { type: 'number', description: 'Line number to get context for' }, linesContext: { type: 'number', description: 'Number of lines before and after to include (default: 5)' } }, required: ['sessionId', 'file', 'line'] } },
@@ -1136,8 +1138,12 @@ export class DebugMcpServer {
               try {
                 // Default to false for cleaner output
                 const includeInternals = args.includeInternals ?? false;
-                const stackFrames = await this.getStackTrace(args.sessionId, includeInternals);
-                result = { content: [{ type: 'text', text: JSON.stringify({ success: true, stackFrames, count: stackFrames.length, includeInternals }) }] };
+                const maxDepth = typeof args.maxDepth === 'number' ? args.maxDepth : undefined;
+                const { frames, totalFrames } = await this.getStackTrace(args.sessionId, includeInternals, maxDepth);
+                const returned = frames.length;
+                // True when framework filtering and/or the maxDepth cap dropped frames.
+                const filtered = totalFrames > returned;
+                result = { content: [{ type: 'text', text: JSON.stringify({ success: true, stackFrames: frames, count: returned, totalFrames, returned, filtered, includeInternals }) }] };
               } catch (error) {
                 // Handle validation errors specifically
                 if (error instanceof SessionTerminatedError ||
