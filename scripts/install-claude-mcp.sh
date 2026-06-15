@@ -1,14 +1,32 @@
 #!/bin/bash
 # Script to install mcp-debugger as an MCP server for Claude Code
 # This handles all the configuration details automatically
+#
+# Usage: ./install-claude-mcp.sh [--scope user]
+#   --scope user  Register for all Claude Code sessions (user scope)
+#                 Default: project-scoped (active only in the current directory)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+SCOPE_FLAG=""
+i=1
+while [ $i -le $# ]; do
+  arg="${!i}"
+  case "$arg" in
+    --scope)
+      i=$((i+1))
+      SCOPE_FLAG="--scope ${!i}"
+      ;;
+  esac
+  i=$((i+1))
+done
+
 echo "Installing mcp-debugger for Claude Code..."
 echo "Project directory: $PROJECT_DIR"
+[ -n "$SCOPE_FLAG" ] && echo "Scope: $SCOPE_FLAG" || echo "Scope: project (default)"
 
 # Detect Claude CLI location
 CLAUDE_CLI=$(command -v claude 2>/dev/null || echo "")
@@ -30,7 +48,7 @@ $CLAUDE_CLI mcp remove mcp-debugger 2>/dev/null || true
 
 # Add the MCP server with proper configuration
 echo "Adding mcp-debugger to Claude Code..."
-$CLAUDE_CLI mcp add-json mcp-debugger \
+$CLAUDE_CLI mcp add-json $SCOPE_FLAG mcp-debugger \
   "{\"type\":\"stdio\",\"command\":\"node\",\"args\":[\"$PROJECT_DIR/dist/index.js\",\"stdio\"],\"env\":{}}"
 
 # Verify the configuration

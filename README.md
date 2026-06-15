@@ -72,11 +72,23 @@ For Claude Code users, we provide an automated installation script:
 git clone https://github.com/debugmcp/mcp-debugger.git
 cd mcp-debugger
 
-# Run the installation script
+# Run the installation script (project-scoped — active only in this directory)
 ./scripts/install-claude-mcp.sh
+
+# To install for all sessions (user scope):
+./scripts/install-claude-mcp.sh --scope user
 
 # Verify the connection (use 'claude mcp list' if claude is on your PATH)
 claude mcp list
+```
+
+**Project vs user scope**: Without `--scope user`, the MCP server is registered only for the current project. Pass `--scope user` to make it available across all your Claude Code sessions.
+
+**No local clone needed**: For a quick user-scoped install via npx:
+
+```bash
+claude mcp add-json --scope user mcp-debugger \
+  '{"type":"stdio","command":"npx","args":["@debugmcp/mcp-debugger","stdio"]}'
 ```
 
 **Important**: The `stdio` argument is required to prevent console output from corrupting the JSON-RPC protocol. See [CLAUDE.md](CLAUDE.md) for detailed setup and troubleshooting.
