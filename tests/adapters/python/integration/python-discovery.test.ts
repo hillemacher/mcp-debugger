@@ -4,12 +4,19 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ensurePythonOnPath } from './env-utils.js';
+import { spawnSync } from 'child_process';
+
+function isDebugpyAvailable(): boolean {
+  const cmd = process.platform === 'win32' ? 'py' : 'python3';
+  const r = spawnSync(cmd, ['-m', 'debugpy', '--version'], { stdio: 'pipe', timeout: 5000 });
+  return !r.error && r.status === 0;
+}
 import fs from 'fs';
 
 // DO NOT mock Python discovery - we want to test the real implementation
 // This test should fail on Windows if python3 is the Microsoft Store redirect
 
-describe('Python Discovery - Real Implementation Test @requires-python', () => {
+describe.runIf(isDebugpyAvailable())('Python Discovery - Real Implementation Test @requires-python', () => {
   let client: Client | null = null;
 
   beforeAll(async () => {

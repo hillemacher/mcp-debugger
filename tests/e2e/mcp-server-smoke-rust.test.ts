@@ -9,11 +9,16 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { parseSdkToolResult, callToolSafely } from './smoke-test-utils.js';
 import { prepareRustExample } from './rust-example-utils.js';
+import { execSync } from 'child_process';
+
+function isCargoAvailable(): boolean {
+  try { execSync('cargo --version', { stdio: 'ignore' }); return true; } catch { return false; }
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '../..');
-describe('MCP Server Rust Debugging Smoke Test', () => {
+describe.skipIf(!isCargoAvailable())('MCP Server Rust Debugging Smoke Test', () => {
   let mcpClient: Client | null = null;
   let transport: StdioClientTransport | null = null;
   let sessionId: string | null = null;
