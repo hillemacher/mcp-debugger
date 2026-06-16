@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import { ensurePythonOnPath } from './env-utils.js';
 import { spawnSync } from 'child_process';
 
+// spawnSync is required: describe.skipIf/runIf evaluate their argument
+// synchronously at module load time, so async alternatives cannot be used.
 function isDebugpyAvailable(): boolean {
   const cmd = process.platform === 'win32' ? 'py' : 'python3';
   const r = spawnSync(cmd, ['-m', 'debugpy', '--version'], { stdio: 'pipe', timeout: 5000 });

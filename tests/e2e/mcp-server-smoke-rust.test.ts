@@ -11,6 +11,8 @@ import { parseSdkToolResult, callToolSafely } from './smoke-test-utils.js';
 import { prepareRustExample } from './rust-example-utils.js';
 import { execSync } from 'child_process';
 
+// spawnSync is required: describe.skipIf/runIf evaluate their argument
+// synchronously at module load time, so async alternatives cannot be used.
 function isCargoAvailable(): boolean {
   try { execSync('cargo --version', { stdio: 'ignore' }); return true; } catch { return false; }
 }
