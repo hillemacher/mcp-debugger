@@ -314,3 +314,42 @@ The MCP Debugger is fully functional for Python, Ruby, JavaScript, Rust, Go, Jav
 - **All languages**: Use actual frame IDs from `get_stack_trace` (not hardcoded 0), and ensure proper state and context for operations
 
 Following this guide will help you successfully test and use all debugging features without encountering the previously reported issues.
+
+## Claude Code Skills
+
+If you use [Claude Code](https://claude.ai/code) as your AI assistant, the repository
+ships ready-to-copy skill files under [`docs/skills/`](./skills/). A skill file gives
+Claude a compact, opinionated strategy to follow whenever you ask it to debug — covering
+when to reach for the interactive debugger versus cheaper signals, how to attach, how to
+inspect state efficiently, and how to clean up.
+
+### Available skills
+
+| Skill | File | Invoked when… |
+|---|---|---|
+| `java-debug-strategy` | [`docs/skills/java-debug-strategy/SKILL.md`](./skills/java-debug-strategy/SKILL.md) | You ask Claude to debug, step through, or explain a failing Java / Gradle / JVM test |
+
+### Installing a skill
+
+Claude Code loads skills from `~/.claude/skills/<name>/SKILL.md` (global — active in
+every project) or `.claude/skills/<name>/SKILL.md` in the project root (project-scoped).
+
+**Global install** (recommended — available everywhere):
+
+```bash
+mkdir -p ~/.claude/skills/java-debug-strategy
+cp docs/skills/java-debug-strategy/SKILL.md \
+   ~/.claude/skills/java-debug-strategy/SKILL.md
+```
+
+**Project-scoped install** (active only when this repo is open in Claude Code):
+
+```bash
+mkdir -p .claude/skills/java-debug-strategy
+cp docs/skills/java-debug-strategy/SKILL.md \
+   .claude/skills/java-debug-strategy/SKILL.md
+```
+
+After copying, start a new Claude Code session. The skill appears automatically in the
+*Available skills* list and Claude invokes it whenever the trigger conditions are met —
+no slash command needed.
