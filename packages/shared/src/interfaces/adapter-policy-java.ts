@@ -202,34 +202,27 @@ export const JavaAdapterPolicy: AdapterPolicy = {
   },
 
   isInternalFrame: (frame: StackFrame): boolean => {
-    const frameName = frame.name || '';
     const filePath = frame.file || '';
 
-    // JDK, reflection, test-framework, and build-tool runtime frames (by class name)
-    const internalPrefixes = [
-      'java.',
-      'javax.',
-      'sun.',
-      'jdk.internal.',
-      'java.lang.reflect.',
-      'sun.reflect.',
-      'org.junit.',
-      'org.gradle.',
-      'worker.org.gradle.'
+    // Path-format (slash-separated): JDI emits when source info is present.
+    // e.g. "java/lang/Thread.java", "org/junit/.../NodeTestTask.java"
+    const slashPrefixes = [
+      'java/', 'javax/', 'sun/', 'jdk/',
+      'org/junit/', 'org/gradle/', 'worker/org/gradle/',
     ];
-    if (internalPrefixes.some(prefix => frameName.startsWith(prefix))) {
-      return true;
-    }
+    if (slashPrefixes.some(p => filePath.startsWith(p))) return true;
 
-    // Synthetic / lambda frames (e.g. com.example.Foo$$Lambda$1, LambdaMetafactory)
-    if (frameName.includes('$$Lambda') || frameName.includes('LambdaMetafactory')) {
-      return true;
-    }
+    // FQCN-dot format: JDI emits when source info is absent (AbsentInformationException).
+    // e.g. "java.lang.Thread", "jdk.internal.reflect.DirectMethodHandleAccessor"
+    const dotPrefixes = [
+      'java.', 'javax.', 'sun.', 'jdk.',
+      'org.junit.', 'org.gradle.', 'worker.org.gradle.',
+    ];
+    if (dotPrefixes.some(p => filePath.startsWith(p))) return true;
 
-    // JDK source/jar paths
-    if (filePath.includes('/jdk/') || filePath.includes('/rt.jar/')) {
-      return true;
-    }
+    // Synthetic lambda frames — declaring type contains $$Lambda.
+    // (LambdaMetafactory is in java.lang.invoke → caught by java. / java/ above)
+    if (filePath.includes('$$Lambda')) return true;
 
     return false;
   },
