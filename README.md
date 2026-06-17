@@ -325,6 +325,7 @@ Then get the local variables:
 - 🐹 [Go Debugging Guide](./docs/go/README.md) – Go debugging with Delve
 - ☕ [Java Debugging Guide](./docs/java/README.md) – Java debugging with JDI bridge
 - [Rust Debugging on Windows](docs/rust-debugging-windows.md) - Toolchain requirements and troubleshooting
+- 🤖 [Claude Code Skills](./docs/skills/) – Ready-to-use skill files for Claude Code; copy to `~/.claude/skills/` to activate
 - 🔧 [Troubleshooting](./docs/troubleshooting.md) – Common issues & solutions
 
 ## 🤝 Contributing
