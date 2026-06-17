@@ -163,20 +163,21 @@ describe('JavaAdapterPolicy', () => {
   describe('filterStackFrames', () => {
     it('should filter JDK internal frames', () => {
       const frames = [
-        { id: 1, name: 'com.example.Main.main', file: '/app/Main.java', line: 10 },
-        { id: 2, name: 'java.lang.Thread.run', file: '', line: 0 },
-        { id: 3, name: 'sun.misc.Launcher.main', file: '', line: 0 },
+        { id: 1, name: 'main', file: '/app/Main.java', line: 10 },
+        { id: 2, name: 'run',  file: 'java/lang/Thread.java', line: 834 },   // path format
+        { id: 3, name: 'main', file: 'sun.misc.Launcher', line: 0 },         // FQCN format (no source)
       ];
 
       const filtered = JavaAdapterPolicy.filterStackFrames!(frames, false);
       expect(filtered).toHaveLength(1);
-      expect(filtered[0].name).toBe('com.example.Main.main');
+      expect(filtered[0].name).toBe('main');
+      expect(filtered[0].file).toBe('/app/Main.java');
     });
 
     it('should include all frames when includeInternals is true', () => {
       const frames = [
-        { id: 1, name: 'com.example.Main.main', file: '/app/Main.java', line: 10 },
-        { id: 2, name: 'java.lang.Thread.run', file: '', line: 0 },
+        { id: 1, name: 'main', file: '/app/Main.java', line: 10 },
+        { id: 2, name: 'run',  file: 'java/lang/Thread.java', line: 834 },
       ];
 
       const filtered = JavaAdapterPolicy.filterStackFrames!(frames, true);
@@ -186,61 +187,63 @@ describe('JavaAdapterPolicy', () => {
 
   describe('isInternalFrame', () => {
     it('should identify java.* frames as internal', () => {
-      expect(JavaAdapterPolicy.isInternalFrame!({ id: 1, name: 'java.lang.Thread.run', file: '', line: 0 })).toBe(true);
+      expect(JavaAdapterPolicy.isInternalFrame!({ id: 1, name: 'run', file: 'java/lang/Thread.java', line: 0 })).toBe(true);
     });
 
     it('should identify javax.* frames as internal', () => {
-      expect(JavaAdapterPolicy.isInternalFrame!({ id: 1, name: 'javax.swing.JFrame.init', file: '', line: 0 })).toBe(true);
+      expect(JavaAdapterPolicy.isInternalFrame!({ id: 1, name: 'init', file: 'javax/swing/JFrame.java', line: 0 })).toBe(true);
     });
 
     it('should identify sun.* frames as internal', () => {
-      expect(JavaAdapterPolicy.isInternalFrame!({ id: 1, name: 'sun.misc.Launcher', file: '', line: 0 })).toBe(true);
+      expect(JavaAdapterPolicy.isInternalFrame!({ id: 1, name: 'main', file: 'sun.misc.Launcher', line: 0 })).toBe(true);
     });
 
     it('should not identify user frames as internal', () => {
-      expect(JavaAdapterPolicy.isInternalFrame!({ id: 1, name: 'com.example.Main.main', file: '/app/Main.java', line: 10 })).toBe(false);
+      expect(JavaAdapterPolicy.isInternalFrame!({ id: 1, name: 'main', file: '/app/Main.java', line: 10 })).toBe(false);
     });
   });
 
+
+
   describe('framework frame filtering (JUnit/Gradle/reflection/lambda)', () => {
-    const userFrame = { id: 1, name: 'com.example.CalculatorTest.testAdd', file: '/app/CalculatorTest.java', line: 12 };
+    const userFrame = { id: 1, name: 'testAdd', file: '/app/CalculatorTest.java', line: 12 };
 
     it.each([
-      ['jdk.internal.*', 'jdk.internal.reflect.DirectMethodHandleAccessor.invoke'],
-      ['java.lang.reflect.*', 'java.lang.reflect.Method.invoke'],
-      ['sun.reflect.*', 'sun.reflect.NativeMethodAccessorImpl.invoke0'],
-      ['org.junit.*', 'org.junit.platform.engine.support.hierarchical.NodeTestTask.execute'],
-      ['org.gradle.*', 'org.gradle.api.internal.tasks.testing.junit.JUnitTestClassProcessor.processTestClass'],
-      ['worker.org.gradle.*', 'worker.org.gradle.process.internal.worker.GradleWorkerMain.main'],
-      ['synthetic lambda', 'com.example.Foo$$Lambda$14/0x0000000800066c40.run'],
-      ['LambdaMetafactory', 'java.lang.invoke.LambdaMetafactory.metafactory'],
-    ])('identifies %s frames as internal', (_label, name) => {
-      expect(JavaAdapterPolicy.isInternalFrame!({ id: 9, name, file: '', line: 0 })).toBe(true);
+      ['jdk.internal (path)',       'invoke',           'jdk/internal/reflect/DirectMethodHandleAccessor.java'],
+      ['jdk.internal (fqcn)',       'invoke',           'jdk.internal.reflect.DirectMethodHandleAccessor'],
+      ['java.lang.reflect',         'invoke',           'java/lang/reflect/Method.java'],
+      ['sun.reflect (fqcn)',        'invoke0',          'sun.reflect.NativeMethodAccessorImpl'],
+      ['org.junit (path)',          'execute',          'org/junit/platform/engine/support/hierarchical/NodeTestTask.java'],
+      ['org.gradle (path)',         'processTestClass', 'org/gradle/api/internal/tasks/testing/junit/JUnitTestClassProcessor.java'],
+      ['worker.org.gradle (fqcn)',  'main',             'worker.org.gradle.process.internal.worker.GradleWorkerMain'],
+      ['synthetic $$Lambda',        'run',              'com.example.Foo$$Lambda$14/0x0000000800066c40'],
+      ['LambdaMetafactory',         'metafactory',      'java/lang/invoke/LambdaMetafactory.java'],
+    ])('identifies %s frames as internal', (_label, name, file) => {
+      expect(JavaAdapterPolicy.isInternalFrame!({ id: 9, name, file, line: 0 })).toBe(true);
     });
 
     it('collapses a deep (100+) JUnit/Gradle stack to only the user frames', () => {
-      const frameworkNames = [
-        'org.junit.platform.engine.support.hierarchical.NodeTestTask.execute',
-        'org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod',
-        'jdk.internal.reflect.DirectMethodHandleAccessor.invoke',
-        'java.lang.reflect.Method.invoke',
-        'sun.reflect.NativeMethodAccessorImpl.invoke0',
-        'org.gradle.api.internal.tasks.testing.junit.JUnitTestClassProcessor.processTestClass',
-        'worker.org.gradle.process.internal.worker.GradleWorkerMain.main',
-        'java.lang.Thread.run',
-        'com.example.Foo$$Lambda$14/0x0000000800066c40.run',
+      const frameworkDefs = [
+        { name: 'execute',          file: 'org/junit/platform/engine/support/hierarchical/NodeTestTask.java' },
+        { name: 'invokeTestMethod', file: 'org/junit/jupiter/engine/descriptor/TestMethodTestDescriptor.java' },
+        { name: 'invoke',           file: 'jdk.internal.reflect.DirectMethodHandleAccessor' },
+        { name: 'invoke',           file: 'java/lang/reflect/Method.java' },
+        { name: 'invoke0',          file: 'sun.reflect.NativeMethodAccessorImpl' },
+        { name: 'processTestClass', file: 'org/gradle/api/internal/tasks/testing/junit/JUnitTestClassProcessor.java' },
+        { name: 'main',             file: 'worker.org.gradle.process.internal.worker.GradleWorkerMain' },
+        { name: 'run',              file: 'java.lang.Thread' },
+        { name: 'run',              file: 'com.example.Foo$$Lambda$14/0x0000000800066c40' },
       ];
 
       // 3 user frames buried in a 100+ frame stack of framework/runtime frames.
       const userFrames = [
         userFrame,
-        { id: 2, name: 'com.example.Calculator.add', file: '/app/Calculator.java', line: 7 },
-        { id: 3, name: 'com.example.Calculator.checkedAdd', file: '/app/Calculator.java', line: 15 },
+        { id: 2, name: 'add',        file: '/app/Calculator.java', line: 7  },
+        { id: 3, name: 'checkedAdd', file: '/app/Calculator.java', line: 15 },
       ];
       const frameworkFrames = Array.from({ length: 120 }, (_, i) => ({
         id: 100 + i,
-        name: frameworkNames[i % frameworkNames.length],
-        file: '',
+        ...frameworkDefs[i % frameworkDefs.length],
         line: i,
       }));
       const frames = [userFrames[0], userFrames[1], ...frameworkFrames, userFrames[2]];
@@ -248,11 +251,7 @@ describe('JavaAdapterPolicy', () => {
       expect(frames.length).toBeGreaterThan(100);
 
       const filtered = JavaAdapterPolicy.filterStackFrames!(frames, false);
-      expect(filtered.map(f => f.name)).toEqual([
-        'com.example.CalculatorTest.testAdd',
-        'com.example.Calculator.add',
-        'com.example.Calculator.checkedAdd',
-      ]);
+      expect(filtered.map(f => f.name)).toEqual(['testAdd', 'add', 'checkedAdd']);
 
       // includeInternals: true returns the full stack unchanged.
       expect(JavaAdapterPolicy.filterStackFrames!(frames, true)).toHaveLength(frames.length);
@@ -443,10 +442,10 @@ describe('JavaAdapterPolicy', () => {
   });
 
   describe('filterStackFrames - file path filtering', () => {
-    it('should filter frames with /jdk/ in path', () => {
+    it('should filter jdk.* frames (path format)', () => {
       const frames = [
-        { id: 1, name: 'com.example.App.run', file: '/app/App.java', line: 10 },
-        { id: 2, name: 'Runtime.exec', file: '/usr/lib/jdk/Runtime.java', line: 100 }
+        { id: 1, name: 'run',  file: '/app/App.java', line: 10 },
+        { id: 2, name: 'exec', file: 'jdk/internal/process/ProcessHandleImpl.java', line: 100 }
       ];
 
       const filtered = JavaAdapterPolicy.filterStackFrames!(frames, false);
@@ -454,10 +453,10 @@ describe('JavaAdapterPolicy', () => {
       expect(filtered[0].id).toBe(1);
     });
 
-    it('should filter frames with /rt.jar/ in path', () => {
+    it('should filter java.* frames (fqcn format, no source)', () => {
       const frames = [
-        { id: 1, name: 'com.example.App.run', file: '/app/App.java', line: 10 },
-        { id: 2, name: 'Object.wait', file: '/jre/lib/rt.jar/Object.java', line: 50 }
+        { id: 1, name: 'run',  file: '/app/App.java', line: 10 },
+        { id: 2, name: 'wait', file: 'java.lang.Object', line: 50 }
       ];
 
       const filtered = JavaAdapterPolicy.filterStackFrames!(frames, false);

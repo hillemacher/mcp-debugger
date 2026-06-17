@@ -2383,25 +2383,27 @@ describe('Session Manager Operations Coverage - Error Paths and Edge Cases', () 
     describe('getStackTraceResult (Java framework filtering, maxDepth, metadata)', () => {
       // 2 user frames buried in a deep JUnit/Gradle/JDK framework stack.
       const buildDeepJavaStack = () => {
-        const frameworkNames = [
-          'org.junit.platform.engine.support.hierarchical.NodeTestTask.execute',
-          'jdk.internal.reflect.DirectMethodHandleAccessor.invoke',
-          'java.lang.reflect.Method.invoke',
-          'sun.reflect.NativeMethodAccessorImpl.invoke0',
-          'org.gradle.api.internal.tasks.testing.junit.JUnitTestClassProcessor.processTestClass',
-          'worker.org.gradle.process.internal.worker.GradleWorkerMain.main',
-          'java.lang.Thread.run',
-          'com.example.Foo$$Lambda$14/0x0000000800066c40.run',
+        // Real JDI format: name = method name only; source.path = package-slash path
+        // when debug info is present; source.name = FQCN-dot when absent.
+        const frameworkDefs = [
+          { name: 'execute',          source: { path: 'org/junit/platform/engine/support/hierarchical/NodeTestTask.java' } },
+          { name: 'invoke',           source: { name: 'jdk.internal.reflect.DirectMethodHandleAccessor' } },
+          { name: 'invoke',           source: { path: 'java/lang/reflect/Method.java' } },
+          { name: 'invoke0',          source: { name: 'sun.reflect.NativeMethodAccessorImpl' } },
+          { name: 'processTestClass', source: { path: 'org/gradle/api/internal/tasks/testing/junit/JUnitTestClassProcessor.java' } },
+          { name: 'main',             source: { name: 'worker.org.gradle.process.internal.worker.GradleWorkerMain' } },
+          { name: 'run',              source: { name: 'java.lang.Thread' } },
+          { name: 'run',              source: { name: 'com.example.Foo$$Lambda$14/0x0000000800066c40' } },
         ];
         const frameworkFrames = Array.from({ length: 120 }, (_, i) => ({
           id: 100 + i,
-          name: frameworkNames[i % frameworkNames.length],
+          ...frameworkDefs[i % frameworkDefs.length],
           line: i,
           column: 0,
         }));
         return [
-          { id: 1, name: 'com.example.CalculatorTest.testAdd', line: 12, column: 1, source: { path: '/app/CalculatorTest.java' } },
-          { id: 2, name: 'com.example.Calculator.add', line: 7, column: 1, source: { path: '/app/Calculator.java' } },
+          { id: 1, name: 'testAdd', line: 12, column: 1, source: { path: '/app/CalculatorTest.java' } },
+          { id: 2, name: 'add',     line: 7,  column: 1, source: { path: '/app/Calculator.java' } },
           ...frameworkFrames,
         ];
       };
@@ -2418,10 +2420,7 @@ describe('Session Manager Operations Coverage - Error Paths and Edge Cases', () 
         const result = await operations.getStackTraceResult('test-session', undefined, false);
 
         expect(result.totalFrames).toBe(122);
-        expect(result.frames.map(f => f.name)).toEqual([
-          'com.example.CalculatorTest.testAdd',
-          'com.example.Calculator.add',
-        ]);
+        expect(result.frames.map(f => f.name)).toEqual(['testAdd', 'add']);
         // filtered indicator (computed in the server handler) would be totalFrames > returned
         expect(result.totalFrames).toBeGreaterThan(result.frames.length);
       });
@@ -2430,7 +2429,7 @@ describe('Session Manager Operations Coverage - Error Paths and Edge Cases', () 
         const result = await operations.getStackTraceResult('test-session', undefined, false, 1);
 
         expect(result.frames).toHaveLength(1);
-        expect(result.frames[0].name).toBe('com.example.CalculatorTest.testAdd');
+        expect(result.frames[0].name).toBe('testAdd');
         expect(result.totalFrames).toBe(122);
       });
 
